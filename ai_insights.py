@@ -1,4 +1,4 @@
-"""AI insights using Ollama with Llama 3.2 1B."""
+"""AI insights using Ollama (local) or Groq (cloud) LLM."""
 
 import os
 import requests
@@ -6,8 +6,23 @@ import json
 import re
 
 OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-MODEL = "llama3.2:1b"
+OLLAMA_MODEL = "llama3.2:1b"
 GENERATE_TIMEOUT = 600
+GROQ_MODEL = "llama-3.1-8b-instant"
+
+
+def _get_groq_api_key() -> str | None:
+    """Get Groq API key from Streamlit secrets or environment."""
+    key = os.environ.get("GROQ_API_KEY")
+    if key:
+        return key
+    try:
+        import streamlit as st
+        if "GROQ_API_KEY" in st.secrets:
+            return st.secrets["GROQ_API_KEY"]
+    except Exception:
+        pass
+    return None
 
 
 def is_ollama_available() -> bool:
@@ -18,26 +33,50 @@ def is_ollama_available() -> bool:
             return False
         models = r.json().get("models", [])
         model_names = [m.get("name", "") for m in models]
-        return any(MODEL in name for name in model_names)
+        return any(OLLAMA_MODEL in name for name in model_names)
     except requests.exceptions.RequestException:
         return False
 
 
+def is_cloud_ai_available() -> bool:
+    """Check if Groq API key is configured for cloud deployment."""
+    return _get_groq_api_key() is not None
+
+
+def _get_ai_status() -> str:
+    """Return human-readable AI backend status."""
+    if is_ollama_available():
+        return "🟢 Ollama (local)"
+    if is_cloud_ai_available():
+        return "🟢 Groq (cloud)"
+    return "🔴 Not configured"
+
+
 def generate_insights(aggregated: dict) -> str:
     """
-    Send aggregated expense data to Ollama model and return insights.
-    Falls back to a basic summary if Ollama is unavailable.
+    Generate insights using Ollama (local) or Groq (cloud).
+    Falls back to a basic summary if neither is available.
     """
-    if not is_ollama_available():
-        return _fallback_insights(aggregated)
-
     prompt = _build_prompt(aggregated)
 
+    # Prefer Ollama when running locally
+    if is_ollama_available():
+        return _generate_via_ollama(prompt, aggregated)
+
+    # Use Groq when deployed to cloud
+    if is_cloud_ai_available():
+        return _generate_via_groq(prompt, aggregated)
+
+    return _fallback_insights(aggregated)
+
+
+def _generate_via_ollama(prompt: str, aggregated: dict) -> str:
+    """Generate via local Ollama."""
     try:
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={
-                "model": MODEL,
+                "model": OLLAMA_MODEL,
                 "prompt": prompt,
                 "stream": False,
                 "options": {"temperature": 0.3},
@@ -50,6 +89,27 @@ def generate_insights(aggregated: dict) -> str:
         return text if text else _fallback_insights(aggregated)
     except requests.exceptions.RequestException as e:
         return f"Could not reach Ollama: {e}\n\n" + _fallback_insights(aggregated)
+
+
+def _generate_via_groq(prompt: str, aggregated: dict) -> str:
+    """Generate via Groq cloud API."""
+    api_key = _get_groq_api_key()
+    if not api_key:
+        return _fallback_insights(aggregated)
+
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=api_key)
+        completion = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        text = completion.choices[0].message.content.strip()
+        return text if text else _fallback_insights(aggregated)
+    except Exception as e:
+        return f"Groq API error: {e}\n\n" + _fallback_insights(aggregated)
 
 
 def _build_prompt(aggregated: dict) -> str:
@@ -79,7 +139,7 @@ Keep the tone helpful and practical. Use clear sections with **bold** headers. D
 
 
 def _fallback_insights(aggregated: dict) -> str:
-    """Return a basic summary when Ollama is not available."""
+    """Return a basic summary when no AI is available."""
     total = aggregated.get("total_spending", 0)
     count = aggregated.get("expense_count", 0)
     by_cat = aggregated.get("by_category", {})
@@ -96,6 +156,7 @@ def _fallback_insights(aggregated: dict) -> str:
 {chr(10).join(f"- {k}: {v:.2f}" for k, v in sorted(by_cat.items(), key=lambda x: -x[1]))}
 
 ---
-*To get AI-powered insights, run Ollama locally and pull a model:*
-*`ollama pull llama3.2:1b`*
+*To get AI-powered insights:*
+- **Local:** Run Ollama and pull a model: `ollama pull llama3.2:1b`
+- **Cloud:** Add GROQ_API_KEY to Streamlit secrets (free at [console.groq.com](https://console.groq.com))
 """

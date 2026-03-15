@@ -1,4 +1,4 @@
-"""Expenses Tracker - Streamlit app with AI insights via Ollama/Llama 3.2 1B."""
+"""Expenses Tracker - Streamlit app with AI insights via Ollama (local) or Groq (cloud)."""
 
 import streamlit as st
 from datetime import datetime, date, timedelta
@@ -7,7 +7,7 @@ import plotly.express as px
 
 import db
 from aggregator import aggregate_expenses
-from ai_insights import generate_insights, is_ollama_available
+from ai_insights import generate_insights, _get_ai_status
 
 # Page config
 st.set_page_config(page_title="Expenses Tracker", page_icon="💰", layout="wide")
@@ -22,7 +22,7 @@ if "expenses" not in st.session_state:
 
 def main():
     st.title("💰 Expenses Tracker")
-    st.caption("Track expenses and get AI-powered insights with Llama 3.2 1B")
+    st.caption("Track expenses and get AI-powered insights")
 
     # Sidebar - Add expense form
     with st.sidebar:
@@ -45,8 +45,7 @@ def main():
                 st.rerun()
 
         st.divider()
-        ollama_status = "🟢 Ready" if is_ollama_available() else "🔴 Not running"
-        st.caption(f"Ollama Llama 3.2 1B: {ollama_status}")
+        st.caption(f"AI insights: {_get_ai_status()}")
 
     # Date range filter
     col1, col2, col3 = st.columns([1, 1, 2])
@@ -121,7 +120,7 @@ def main():
 
         if st.button("Generate Insights", type="primary"):
             aggregated = aggregate_expenses(expenses)
-            with st.spinner("Analyzing your expenses with Llama 3.2 1B..."):
+            with st.spinner("Analyzing your expenses..."):
                 insights = generate_insights(aggregated)
             st.markdown(insights)
             st.session_state.last_insights = insights
