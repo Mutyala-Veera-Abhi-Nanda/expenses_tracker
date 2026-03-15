@@ -1,6 +1,6 @@
 # Expenses Tracker
 
-Track expenses manually and get AI-powered insights using Ollama.
+Track expenses manually and get AI-powered insights using Ollama (local) or Groq (cloud).
 
 ## Setup
 
@@ -9,15 +9,26 @@ Track expenses manually and get AI-powered insights using Ollama.
    pip install -r requirements.txt
    ```
 
-2. **Install and run Ollama** (for AI insights)
-   - Download from [ollama.com](https://ollama.com)
-   - Pull Model
-   - Keep Ollama running in the background
+2. **AI insights** (choose one)
+   - **Local:** Install [Ollama](https://ollama.com), run `ollama pull llama3.2:1b`
+   - **Cloud:** Add `GROQ_API_KEY` to Streamlit secrets (see below)
 
 3. **Run the app**
    ```bash
    streamlit run app.py
    ```
+
+## Groq Setup (for AI insights on Streamlit Cloud)
+
+Ollama runs only on your machine. For the deployed app, use **Groq** (free tier with Llama models).
+
+1. Go to [console.groq.com](https://console.groq.com) and sign up
+2. Create an API key under **API Keys**
+3. Add to Streamlit Cloud secrets:
+   ```toml
+   GROQ_API_KEY = "gsk_your_api_key_here"
+   ```
+4. Save and redeploy
 
 ## Supabase Setup (for persistent storage when deployed)
 
@@ -44,9 +55,10 @@ By default, the app uses **SQLite** locally. For deployed apps (e.g. Streamlit C
 
 1. Open your app on [share.streamlit.io](https://share.streamlit.io)
 2. Click **Settings** (⚙️) → **Secrets**
-3. Add:
+3. Add your secrets (both for full deployment):
    ```toml
    DATABASE_URL = "postgresql://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres"
+   GROQ_API_KEY = "gsk_your_groq_api_key"
    ```
 4. Save and wait for the app to redeploy
 
@@ -72,13 +84,12 @@ expenses_tracker/
 ├── app.py          # Streamlit UI
 ├── db.py           # SQLite / Postgres CRUD
 ├── aggregator.py   # Pandas aggregation
-├── ai_insights.py  # Ollama/DeepSeek-R1 integration
+├── ai_insights.py  # Ollama (local) / Groq (cloud) integration
 ├── expenses.db     # Local SQLite (when not using Supabase)
 └── requirements.txt
 ```
 
 ## Notes
 
-- Works without Ollama: basic summary shown instead of AI insights
-- **Local:** Data stored in `expenses.db` (SQLite)
-- **Deployed:** Use Supabase and set `DATABASE_URL` for persistent storage
+- **AI:** Local = Ollama. Cloud = Groq (free). Neither = basic summary only.
+- **Data:** Local = SQLite. Deployed = Supabase (`DATABASE_URL`).
