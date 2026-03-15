@@ -36,6 +36,7 @@ By default, the app uses **SQLite** locally. For deployed apps (e.g. Streamlit C
 3. Select **URI** tab
 4. Copy the connection string (it looks like `postgresql://postgres.[ref]:[password]@...`)
 5. Replace `[YOUR-PASSWORD]` with your actual database password (from project creation)
+6. **Tip:** If you get connection errors, try a password with only letters and numbers (no `@`, `#`, `%`, etc.)
 
 **Recommended for Streamlit Cloud:** Use the **Transaction** pooler (port **6543**) to handle many short-lived connections.
 

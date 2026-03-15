@@ -38,15 +38,28 @@ def _use_postgres():
     return _get_database_url() is not None
 
 
+def _prepare_postgres_url(url: str) -> str:
+    """Ensure connection URL has sslmode=require for Supabase."""
+    from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    query["sslmode"] = ["require"]
+    new_query = urlencode(query, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
 def get_connection():
     """Get a database connection (SQLite or Postgres)."""
     if _use_postgres():
         import psycopg2
         from psycopg2.extras import RealDictCursor
 
+        url = _get_database_url()
+        url = _prepare_postgres_url(url)
         conn = psycopg2.connect(
-            _get_database_url(),
+            url,
             cursor_factory=RealDictCursor,
+            connect_timeout=10,
         )
         return conn
 
