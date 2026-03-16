@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 
 import db
+import auth
 from aggregator import aggregate_expenses
 from ai_insights import generate_insights, _get_ai_status
 
@@ -20,12 +21,60 @@ if "expenses" not in st.session_state:
     st.session_state.expenses = []
 
 
+def render_login():
+    """Render login/signup form."""
+    tab1, tab2 = st.tabs(["Sign in", "Sign up"])
+
+    with tab1:
+        with st.form("signin_form"):
+            email = st.text_input("Email", type="default")
+            password = st.text_input("Password", type="password")
+            if st.form_submit_button("Sign in"):
+                if email and password:
+                    ok, err = auth.sign_in(email, password)
+                    if ok:
+                        st.success("Signed in!")
+                        st.rerun()
+                    else:
+                        st.error(err)
+                else:
+                    st.warning("Enter email and password")
+
+    with tab2:
+        with st.form("signup_form"):
+            email = st.text_input("Email", key="su_email")
+            password = st.text_input("Password", type="password", key="su_pass")
+            if st.form_submit_button("Create account"):
+                if email and password:
+                    if len(password) < 6:
+                        st.error("Password must be at least 6 characters")
+                    else:
+                        ok, err = auth.sign_up(email, password)
+                        if ok:
+                            st.success(err)
+                            st.rerun()
+                        else:
+                            st.error(err)
+                else:
+                    st.warning("Enter email and password")
+
+
 def main():
+    user = auth.get_current_user()
+    user_id = user["id"] if user else None
+
     st.title("💰 Expenses Tracker")
     st.caption("Track expenses and get AI-powered insights")
 
-    # Sidebar - Add expense form
+    # Sidebar - Auth + Add expense
     with st.sidebar:
+        if user:
+            st.caption(f"Signed in as **{user['email']}**")
+            if st.button("Sign out"):
+                auth.sign_out()
+                st.rerun()
+            st.divider()
+
         st.header("Add Expense")
         with st.form("add_expense_form", clear_on_submit=True):
             amount = st.number_input("Amount", min_value=0.01, step=0.01, format="%.2f")
@@ -40,6 +89,7 @@ def main():
                     category=category,
                     date=expense_date.isoformat(),
                     description=description.strip(),
+                    user_id=user_id,
                 )
                 st.success("Expense added!")
                 st.rerun()
@@ -58,6 +108,7 @@ def main():
     expenses = db.get_all_expenses(
         date_from=date_from.isoformat(),
         date_to=date_to.isoformat(),
+        user_id=user_id,
     )
 
     if not expenses:
@@ -86,7 +137,7 @@ def main():
             options = [(e["id"], f"${e['amount']:.2f} - {e['category']} ({e['date']})") for e in expenses]
             to_delete = st.selectbox("Select expense to delete", options, format_func=lambda x: x[1])
             if st.form_submit_button("Delete"):
-                db.delete_expense(to_delete[0])
+                db.delete_expense(to_delete[0], user_id=user_id)
                 st.success("Deleted!")
                 st.rerun()
 
@@ -129,4 +180,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Auth gate: when Supabase + Auth configured, require login
+    if auth.is_auth_configured():
+        user = auth.get_current_user()
+        if not user:
+            st.title("💰 Expenses Tracker")
+            st.caption("Sign in to access your expenses")
+            render_login()
+        else:
+            main()
+    else:
+        # No auth configured (e.g. local SQLite) - run without auth
+        main()

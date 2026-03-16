@@ -89,6 +89,7 @@ def init_db():
                         created_at TEXT NOT NULL
                     )
                 """)
+                cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS user_id TEXT")
         else:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS expenses (
@@ -105,13 +106,24 @@ def init_db():
         conn.close()
 
 
-def add_expense(amount: float, category: str, date: str, description: str = "") -> int:
+def add_expense(amount: float, category: str, date: str, description: str = "", user_id: str | None = None) -> int:
     """Add a new expense. Returns the created expense id."""
     conn = get_connection()
     created_at = datetime.utcnow().isoformat()
 
     try:
-        if _use_postgres():
+        if _use_postgres() and user_id:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO expenses (amount, category, date, description, created_at, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (amount, category, date, description or "", created_at, user_id),
+            )
+            expense_id = cursor.fetchone()["id"]
+        elif _use_postgres():
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -138,14 +150,17 @@ def add_expense(amount: float, category: str, date: str, description: str = "") 
         conn.close()
 
 
-def get_all_expenses(date_from: str | None = None, date_to: str | None = None):
-    """Get all expenses, optionally filtered by date range."""
+def get_all_expenses(date_from: str | None = None, date_to: str | None = None, user_id: str | None = None):
+    """Get all expenses, optionally filtered by date range and user."""
     conn = get_connection()
     param_style = "%s" if _use_postgres() else "?"
 
     query = "SELECT * FROM expenses WHERE 1=1"
     params = []
 
+    if _use_postgres() and user_id:
+        query += f" AND user_id = {param_style}"
+        params.append(user_id)
     if date_from:
         query += f" AND date >= {param_style}"
         params.append(date_from)
@@ -168,15 +183,21 @@ def get_all_expenses(date_from: str | None = None, date_to: str | None = None):
         conn.close()
 
 
-def delete_expense(expense_id: int) -> bool:
-    """Delete an expense by id. Returns True if deleted."""
+def delete_expense(expense_id: int, user_id: str | None = None) -> bool:
+    """Delete an expense by id. Returns True if deleted. With user_id, only deletes own expenses."""
     conn = get_connection()
     param_style = "%s" if _use_postgres() else "?"
 
     try:
         if _use_postgres():
             cursor = conn.cursor()
-            cursor.execute(f"DELETE FROM expenses WHERE id = {param_style}", (expense_id,))
+            if user_id:
+                cursor.execute(
+                    f"DELETE FROM expenses WHERE id = {param_style} AND user_id = {param_style}",
+                    (expense_id, user_id),
+                )
+            else:
+                cursor.execute(f"DELETE FROM expenses WHERE id = {param_style}", (expense_id,))
             deleted = cursor.rowcount > 0
         else:
             cursor = conn.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
