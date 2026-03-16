@@ -51,23 +51,41 @@ By default, the app uses **SQLite** locally. For deployed apps (e.g. Streamlit C
 
 **Recommended for Streamlit Cloud:** Use the **Transaction** pooler (port **6543**) to handle many short-lived connections.
 
-### 3. Add to Streamlit Community Cloud
+### 3. User authentication (optional)
+
+To enable login/signup, add your Supabase API credentials:
+
+1. Supabase Dashboard → **Project Settings** → **API**
+2. Copy **Project URL** and **anon public** key
+3. Add to Streamlit secrets:
+   ```toml
+   SUPABASE_URL = "https://[PROJECT_REF].supabase.co"
+   SUPABASE_ANON_KEY = "your_anon_key"
+   ```
+
+**Tip:** To skip email confirmation for new signups, go to **Authentication** → **Providers** → **Email** and disable "Confirm email".
+
+**Existing data:** If you had expenses before enabling auth, they have no `user_id` and won't show. In Supabase SQL Editor, run `UPDATE expenses SET user_id = 'YOUR_USER_ID' WHERE user_id IS NULL` (get your ID from the auth.users table or the app after signing in).
+
+### 4. Add to Streamlit Community Cloud
 
 1. Open your app on [share.streamlit.io](https://share.streamlit.io)
 2. Click **Settings** (⚙️) → **Secrets**
-3. Add your secrets (both for full deployment):
+3. Add your secrets (full deployment with auth + AI):
    ```toml
    DATABASE_URL = "postgresql://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres"
+   SUPABASE_URL = "https://[PROJECT_REF].supabase.co"
+   SUPABASE_ANON_KEY = "your_anon_key"
    GROQ_API_KEY = "gsk_your_groq_api_key"
    ```
 4. Save and wait for the app to redeploy
 
-### 4. Local development with Supabase
+### 5. Local development with Supabase
 
 To use Supabase locally instead of SQLite:
 
 1. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`
-2. Add your `DATABASE_URL` to `secrets.toml`
+2. Add `DATABASE_URL`, `SUPABASE_URL`, and `SUPABASE_ANON_KEY` to `secrets.toml`
 3. Run `streamlit run app.py`
 
 ## Features
@@ -76,12 +94,14 @@ To use Supabase locally instead of SQLite:
 - **View & delete** – Table with date filters
 - **Charts** – Bar, pie, and line charts for spending
 - **AI Insights** – Pattern analysis and savings suggestions
+- **User auth** – Sign up / sign in when using Supabase (each user sees only their expenses)
 
 ## Project Structure
 
 ```
 expenses_tracker/
 ├── app.py          # Streamlit UI
+├── auth.py         # Supabase Auth (login/signup)
 ├── db.py           # SQLite / Postgres CRUD
 ├── aggregator.py   # Pandas aggregation
 ├── ai_insights.py  # Ollama (local) / Groq (cloud) integration
@@ -91,5 +111,6 @@ expenses_tracker/
 
 ## Notes
 
+- **Auth:** Only when `SUPABASE_URL` + `SUPABASE_ANON_KEY` are set. Local SQLite = no auth.
 - **AI:** Local = Ollama. Cloud = Groq (free). Neither = basic summary only.
 - **Data:** Local = SQLite. Deployed = Supabase (`DATABASE_URL`).
