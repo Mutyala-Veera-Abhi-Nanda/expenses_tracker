@@ -118,44 +118,9 @@ def sign_up(email: str, password: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def save_auth_to_cookies(cookies) -> bool:
-    """Persist auth tokens to cookies. Call after sign_in/sign_up."""
-    import streamlit as st
-    if "auth_access_token" in st.session_state and "auth_refresh_token" in st.session_state:
-        try:
-            cookies["auth_access_token"] = st.session_state.auth_access_token
-            cookies["auth_refresh_token"] = st.session_state.auth_refresh_token
-            cookies.save()
-            return True
-        except Exception:
-            pass
-    return False
-
-
-def restore_auth_from_cookies(cookies) -> bool:
-    """Restore auth tokens from cookies to session_state. Returns True if restored."""
-    import streamlit as st
-    try:
-        if "auth_access_token" in cookies and "auth_refresh_token" in cookies:
-            st.session_state.auth_access_token = cookies["auth_access_token"]
-            st.session_state.auth_refresh_token = cookies["auth_refresh_token"]
-            return True
-    except Exception:
-        pass
-    return False
-
-
-def sign_out(cookies=None):
-    """Clear auth session and optionally clear persisted cookies."""
+def sign_out():
+    """Clear auth session."""
     _clear_session()
-    if cookies is not None:
-        try:
-            for key in ("auth_access_token", "auth_refresh_token"):
-                if key in cookies:
-                    del cookies[key]
-            cookies.save()
-        except Exception:
-            pass
 
 
 def _clear_session():

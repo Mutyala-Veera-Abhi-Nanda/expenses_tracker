@@ -1,6 +1,5 @@
 """Expenses Tracker - Streamlit app with AI insights via Ollama (local) or Groq (cloud)."""
 
-import os
 import streamlit as st
 from datetime import datetime, date, timedelta
 import pandas as pd
@@ -22,29 +21,7 @@ if "expenses" not in st.session_state:
     st.session_state.expenses = []
 
 
-def get_cookie_manager():
-    """Create cookie manager for auth persistence. Only when auth is configured."""
-    if not auth.is_auth_configured():
-        return None
-    try:
-        from streamlit_cookies_manager import EncryptedCookieManager
-        password = os.environ.get("COOKIES_PASSWORD") or _secret("COOKIES_PASSWORD") or "expenses-tracker-default"
-        return EncryptedCookieManager(
-            prefix="expenses_tracker/",
-            password=password,
-        )
-    except Exception:
-        return None
-
-
-def _secret(key: str):
-    try:
-        return st.secrets[key] if key in st.secrets else None
-    except Exception:
-        return None
-
-
-def render_login(cookies):
+def render_login():
     """Render login/signup form."""
     tab1, tab2 = st.tabs(["Sign in", "Sign up"])
 
@@ -56,8 +33,6 @@ def render_login(cookies):
                 if email and password:
                     ok, err = auth.sign_in(email, password)
                     if ok:
-                        if cookies:
-                            auth.save_auth_to_cookies(cookies)
                         st.success("Signed in!")
                         st.rerun()
                     else:
@@ -76,8 +51,6 @@ def render_login(cookies):
                     else:
                         ok, err = auth.sign_up(email, password)
                         if ok:
-                            if cookies:
-                                auth.save_auth_to_cookies(cookies)
                             st.success(err)
                             st.rerun()
                         else:
@@ -86,7 +59,7 @@ def render_login(cookies):
                     st.warning("Enter email and password")
 
 
-def main(cookies=None):
+def main():
     user = auth.get_current_user()
     user_id = user["id"] if user else None
 
@@ -98,7 +71,7 @@ def main(cookies=None):
         if user:
             st.caption(f"Signed in as **{user['email']}**")
             if st.button("Sign out"):
-                auth.sign_out(cookies=cookies)
+                auth.sign_out()
                 st.rerun()
             st.divider()
 
@@ -209,22 +182,13 @@ def main(cookies=None):
 if __name__ == "__main__":
     # Auth gate: when Supabase + Auth configured, require login
     if auth.is_auth_configured():
-        cookies = get_cookie_manager()
-        if cookies is not None:
-            if not cookies.ready():
-                st.spinner("Loading...")
-                st.stop()
-            # Restore auth from cookies (survives page refresh)
-            if "auth_access_token" not in st.session_state:
-                auth.restore_auth_from_cookies(cookies)
-
         user = auth.get_current_user()
         if not user:
             st.title("💰 Expenses Tracker")
             st.caption("Sign in to access your expenses")
-            render_login(cookies)
+            render_login()
         else:
-            main(cookies)
+            main()
     else:
         # No auth configured (e.g. local SQLite) - run without auth
         main()
