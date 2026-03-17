@@ -90,15 +90,6 @@ def init_db():
                     )
                 """)
                 cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS user_id TEXT")
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS auth_sessions (
-                        token TEXT PRIMARY KEY,
-                        access_token TEXT NOT NULL,
-                        refresh_token TEXT NOT NULL,
-                        expires_at TEXT NOT NULL
-                    )
-                """)
-                cur.execute("DELETE FROM auth_sessions WHERE expires_at < %s", (datetime.utcnow().isoformat(),))
         else:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS expenses (
@@ -216,48 +207,3 @@ def delete_expense(expense_id: int, user_id: str | None = None) -> bool:
         return deleted
     finally:
         conn.close()
-
-
-def create_auth_session(access_token: str, refresh_token: str) -> str | None:
-    """Create a one-time auth session. Returns token or None. Postgres only."""
-    if not _use_postgres():
-        return None
-    import uuid
-    from datetime import timedelta
-    token = str(uuid.uuid4())
-    expires_at = (datetime.utcnow() + timedelta(minutes=5)).isoformat()
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO auth_sessions (token, access_token, refresh_token, expires_at) VALUES (%s, %s, %s, %s)",
-            (token, access_token, refresh_token, expires_at),
-        )
-        conn.commit()
-        return token
-    except Exception:
-        return None
-    finally:
-        conn.close()
-
-
-def consume_auth_session(token: str) -> tuple[str, str] | None:
-    """Look up and delete a one-time auth session. Returns (access_token, refresh_token) or None."""
-    if not _use_postgres():
-        return None
-    conn = get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            "DELETE FROM auth_sessions WHERE token = %s AND expires_at > %s RETURNING access_token, refresh_token",
-            (token, datetime.utcnow().isoformat()),
-        )
-        row = cursor.fetchone()
-        conn.commit()
-        if row:
-            return (row["access_token"], row["refresh_token"])
-    except Exception:
-        pass
-    finally:
-        conn.close()
-    return None

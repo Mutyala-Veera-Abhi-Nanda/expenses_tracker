@@ -119,9 +119,9 @@ def sign_up(email: str, password: str) -> tuple[bool, str]:
 
 
 def save_auth_to_cookies(cookies) -> bool:
-    """Persist auth tokens to cookies. Call after sign_in/sign_up or restore_from_token."""
+    """Persist auth tokens to cookies. Call after sign_in/sign_up."""
     import streamlit as st
-    if "auth_access_token" in st.session_state and "auth_refresh_token" in st.session_state and cookies:
+    if "auth_access_token" in st.session_state and "auth_refresh_token" in st.session_state:
         try:
             cookies["auth_access_token"] = st.session_state.auth_access_token
             cookies["auth_refresh_token"] = st.session_state.auth_refresh_token
@@ -135,8 +135,6 @@ def save_auth_to_cookies(cookies) -> bool:
 def restore_auth_from_cookies(cookies) -> bool:
     """Restore auth tokens from cookies to session_state. Returns True if restored."""
     import streamlit as st
-    if not cookies:
-        return False
     try:
         if "auth_access_token" in cookies and "auth_refresh_token" in cookies:
             st.session_state.auth_access_token = cookies["auth_access_token"]
@@ -147,34 +145,10 @@ def restore_auth_from_cookies(cookies) -> bool:
     return False
 
 
-def create_persist_token() -> str | None:
-    """Create a one-time token for session persistence (survives refresh). Returns token or None."""
-    import streamlit as st
-    if "auth_access_token" in st.session_state and "auth_refresh_token" in st.session_state:
-        import db
-        return db.create_auth_session(
-            st.session_state.auth_access_token,
-            st.session_state.auth_refresh_token,
-        )
-    return None
-
-
-def restore_from_token(token: str) -> bool:
-    """Restore auth from one-time token. Returns True if restored."""
-    import streamlit as st
-    import db
-    result = db.consume_auth_session(token)
-    if result:
-        st.session_state.auth_access_token = result[0]
-        st.session_state.auth_refresh_token = result[1]
-        return True
-    return False
-
-
 def sign_out(cookies=None):
     """Clear auth session and optionally clear persisted cookies."""
     _clear_session()
-    if cookies:
+    if cookies is not None:
         try:
             for key in ("auth_access_token", "auth_refresh_token"):
                 if key in cookies:

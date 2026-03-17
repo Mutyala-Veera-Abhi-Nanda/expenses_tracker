@@ -28,13 +28,23 @@ def get_cookie_manager():
         return None
     try:
         from streamlit_cookies_manager import EncryptedCookieManager
-        password = os.environ.get("COOKIES_PASSWORD") or (st.secrets["COOKIES_PASSWORD"] if "COOKIES_PASSWORD" in st.secrets else None) or "expenses-tracker-default"
-        return EncryptedCookieManager(prefix="expenses_tracker/", password=password)
+        password = os.environ.get("COOKIES_PASSWORD") or _secret("COOKIES_PASSWORD") or "expenses-tracker-default"
+        return EncryptedCookieManager(
+            prefix="expenses_tracker/",
+            password=password,
+        )
     except Exception:
         return None
 
 
-def render_login(cookies=None):
+def _secret(key: str):
+    try:
+        return st.secrets[key] if key in st.secrets else None
+    except Exception:
+        return None
+
+
+def render_login(cookies):
     """Render login/signup form."""
     tab1, tab2 = st.tabs(["Sign in", "Sign up"])
 
@@ -48,9 +58,6 @@ def render_login(cookies=None):
                     if ok:
                         if cookies:
                             auth.save_auth_to_cookies(cookies)
-                        token = auth.create_persist_token()
-                        if token:
-                            st.session_state._auth_redirect = token
                         st.success("Signed in!")
                         st.rerun()
                     else:
@@ -71,9 +78,6 @@ def render_login(cookies=None):
                         if ok:
                             if cookies:
                                 auth.save_auth_to_cookies(cookies)
-                            token = auth.create_persist_token()
-                            if token:
-                                st.session_state._auth_redirect = token
                             st.success(err)
                             st.rerun()
                         else:
@@ -94,7 +98,7 @@ def main(cookies=None):
         if user:
             st.caption(f"Signed in as **{user['email']}**")
             if st.button("Sign out"):
-                auth.sign_out(cookies)
+                auth.sign_out(cookies=cookies)
                 st.rerun()
             st.divider()
 
@@ -206,32 +210,13 @@ if __name__ == "__main__":
     # Auth gate: when Supabase + Auth configured, require login
     if auth.is_auth_configured():
         cookies = get_cookie_manager()
-        if cookies and not cookies.ready():
-            st.spinner("Loading...")
-            st.stop()
-
-        # Restore from cookies first (if available)
-        if cookies and "auth_access_token" not in st.session_state:
-            auth.restore_auth_from_cookies(cookies)
-
-        # Handle redirect after sign-in (token in URL)
-        if "_auth_redirect" in st.session_state:
-            token = st.session_state._auth_redirect
-            del st.session_state._auth_redirect
-            st.components.v1.html(
-                f'<script>window.location.href = window.location.pathname + "?auth=" + "{token}";</script>',
-                height=0,
-            )
-            st.stop()
-
-        # Restore session from one-time token in URL (after redirect)
-        auth_token = st.query_params.get("auth")
-        if auth_token and "auth_access_token" not in st.session_state:
-            if auth.restore_from_token(auth_token):
-                if cookies:
-                    auth.save_auth_to_cookies(cookies)
-                del st.query_params["auth"]
-                st.rerun()
+        if cookies is not None:
+            if not cookies.ready():
+                st.spinner("Loading...")
+                st.stop()
+            # Restore auth from cookies (survives page refresh)
+            if "auth_access_token" not in st.session_state:
+                auth.restore_auth_from_cookies(cookies)
 
         user = auth.get_current_user()
         if not user:
